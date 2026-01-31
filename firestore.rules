@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Users Collection (Profiles)
+    // Users can only access their own profile.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 2. Childs Collection (Device Data)
+    match /childs/{childId} {
+      // Rule 1: Parent Access
+      // A user can read/write if they are listed as the 'pairedParentID' of this child.
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.pairedParentID;
+
+      // Rule 2: Child Access (Self)
+      // The child device itself can read/write its own document.
+      allow read, write: if request.auth != null && request.auth.uid == childId;
+
+      // Rule 3: Creation
+      // Allow creation of new child documents (when resource.data is null)
+      allow create: if request.auth != null && request.auth.uid == childId;
+    }
+  }
+}
