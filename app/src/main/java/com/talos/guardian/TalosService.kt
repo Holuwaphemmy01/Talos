@@ -140,6 +140,10 @@ class TalosService : Service() {
         }
     }
 
+import android.app.usage.UsageStatsManager
+import com.google.firebase.auth.FirebaseAuth
+import com.talos.guardian.data.ChildRepository
+import com.talos.guardian.data.ActivityLog
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -173,7 +177,8 @@ class TalosService : Service() {
                 {
                     "isSafe": boolean,
                     "category": "NUDITY" | "VIOLENCE" | "SAFE" | "OTHER",
-                    "confidence": float (0.0 to 1.0)
+                    "confidence": float (0.0 to 1.0),
+                    "reasoning": "short explanation of what was detected"
                 }
             """.trimIndent()
 
@@ -196,6 +201,17 @@ class TalosService : Service() {
                         hideOverlay()
                     }
                 }
+
+                if (!isSafe) {
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+                    val log = ActivityLog(
+                        timestamp = System.currentTimeMillis(),
+                        appName = getForegroundApp(),
+                        riskCategory = result.optString("category", "UNSAFE"),
+                        aiReasoning = result.optString("reasoning", "Harmful content detected")
+                    )
+                    ChildRepository.logDetectionEvent(uid, log)
+                }
             }
             
         } catch (e: Exception) {
@@ -203,6 +219,19 @@ class TalosService : Service() {
              withContext(Dispatchers.Main) {
                  showOverlay()
              }
+        }
+    }
+
+    private fun getForegroundApp(): String {
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val time = System.currentTimeMillis()
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 10, time)
+        
+        return if (stats != null && stats.isNotEmpty()) {
+            val sortedStats = stats.sortedByDescending { it.lastTimeUsed }
+            sortedStats[0].packageName
+        } else {
+            "Unknown"
         }
     }
 

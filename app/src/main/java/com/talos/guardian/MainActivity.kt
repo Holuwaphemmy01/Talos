@@ -25,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
+import android.app.AppOpsManager
+import android.os.Process
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +49,14 @@ class MainActivity : ComponentActivity() {
     ) {
         // Check if permission is granted after returning from settings
         if (Settings.canDrawOverlays(this)) {
+            checkUsageStatsPermissionAndStart()
+        }
+    }
+
+    private val usageStatsPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (hasUsageStatsPermission()) {
             requestMediaProjection()
         }
     }
@@ -73,8 +83,27 @@ class MainActivity : ComponentActivity() {
             )
             overlayPermissionLauncher.launch(intent)
         } else {
+            checkUsageStatsPermissionAndStart()
+        }
+    }
+
+    private fun checkUsageStatsPermissionAndStart() {
+        if (!hasUsageStatsPermission()) {
+            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+            usageStatsPermissionLauncher.launch(intent)
+        } else {
             requestMediaProjection()
         }
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            Process.myUid(),
+            packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     private fun requestMediaProjection() {

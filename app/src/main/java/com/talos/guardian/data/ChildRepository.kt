@@ -47,4 +47,24 @@ object ChildRepository {
             null
         }
     }
+
+    /**
+     * Logs a detection event to the child's "logs" sub-collection.
+     */
+    suspend fun logDetectionEvent(childID: String, log: ActivityLog) {
+        try {
+            // Create a new document with an auto-generated ID
+            val docRef = db.collection(COLLECTION_CHILDREN)
+                .document(childID)
+                .collection("logs")
+                .document()
+            
+            // Set the ID in the object itself
+            val logWithId = log.copy(id = docRef.id)
+            
+            docRef.set(logWithId).await()
+        } catch (e: Exception) {
+            Log.e("TalosChild", "Failed to log detection event", e)
+        }
+    }
 }

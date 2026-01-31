@@ -39,3 +39,11 @@ data class ChildUser(
 ) {
     val role = UserRole.CHILD
 }
+
+data class ActivityLog(
+    @get:PropertyName("id") val id: String = "",
+    @get:PropertyName("timestamp") val timestamp: Long = System.currentTimeMillis(),
+    @get:PropertyName("appName") val appName: String = "",
+    @get:PropertyName("riskCategory") val riskCategory: String = "",
+    @get:PropertyName("aiReasoning") val aiReasoning: String = ""
+)
