@@ -28,6 +28,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.talos.guardian.workers.SyncLogsWorker
+
 class TalosService : Service() {
 
     companion object {
@@ -43,10 +49,28 @@ class TalosService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        
+        // Initialize Room DB access via Repository
+        ChildRepository.initialize(applicationContext)
+        
+        // Schedule initial sync check
+        scheduleLogSync()
+    }
+
+    private fun scheduleLogSync() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = OneTimeWorkRequestBuilder<SyncLogsWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueue(syncRequest)
     }
 
     private var mediaProjection: MediaProjection? = null
-    private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
 
     private var isProcessing = false

@@ -4,9 +4,20 @@ import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+import android.content.Context
+import com.talos.guardian.data.local.AppDatabase
+import com.talos.guardian.data.local.ActivityLogEntity
+
 object ChildRepository {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     private const val COLLECTION_CHILDREN = "childs" // "childs" collection as requested
+    
+    // We need context to access Room, so we'll init it lazily or pass it in
+    private var database: AppDatabase? = null
+
+    fun initialize(context: Context) {
+        database = AppDatabase.getDatabase(context)
+    }
 
     /**
      * Creates or updates a document in the "childs" collection.
@@ -50,21 +61,29 @@ object ChildRepository {
 
     /**
      * Logs a detection event to the child's "logs" sub-collection.
+     * Uses a "Try-Cloud, Fail-Local" strategy.
      */
     suspend fun logDetectionEvent(childID: String, log: ActivityLog) {
         try {
-            // Create a new document with an auto-generated ID
+            // Attempt Cloud Upload
             val docRef = db.collection(COLLECTION_CHILDREN)
                 .document(childID)
                 .collection("logs")
                 .document()
             
-            // Set the ID in the object itself
             val logWithId = log.copy(id = docRef.id)
-            
             docRef.set(logWithId).await()
+            
         } catch (e: Exception) {
-            Log.e("TalosChild", "Failed to log detection event", e)
+            Log.e("TalosChild", "Cloud upload failed, saving locally", e)
+            
+            // Fallback: Save to Local Room DB
+            try {
+                val entity = ActivityLogEntity.fromDomainModel(log, childID)
+                database?.logDao()?.insertLog(entity)
+            } catch (localError: Exception) {
+                Log.e("TalosChild", "CRITICAL: Failed to save log locally", localError)
+            }
         }
     }
 }
