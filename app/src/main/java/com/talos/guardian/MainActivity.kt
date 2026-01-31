@@ -25,6 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
+import android.net.Uri
+import android.provider.Settings
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 class MainActivity : ComponentActivity() {
 
     private val mediaProjectionLauncher = registerForActivityResult(
@@ -35,6 +42,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val overlayPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Check if permission is granted after returning from settings
+        if (Settings.canDrawOverlays(this)) {
+            requestMediaProjection()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -42,10 +58,22 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
-                        onStartProtection = { requestMediaProjection() }
+                        onStartProtection = { checkOverlayPermissionAndStart() }
                     )
                 }
             }
+        }
+    }
+
+    private fun checkOverlayPermissionAndStart() {
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            overlayPermissionLauncher.launch(intent)
+        } else {
+            requestMediaProjection()
         }
     }
 
@@ -53,6 +81,7 @@ class MainActivity : ComponentActivity() {
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjectionLauncher.launch(projectionManager.createScreenCaptureIntent())
     }
+
 
     private fun startTalosService(resultCode: Int, data: Intent) {
         val serviceIntent = Intent(this, TalosService::class.java).apply {

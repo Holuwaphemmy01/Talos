@@ -140,6 +140,30 @@ class TalosService : Service() {
         }
     }
 
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.TextView
+import org.json.JSONObject
+import kotlinx.coroutines.withContext
+
+class TalosService : Service() {
+
+    // ... (existing variables)
+    private var windowManager: WindowManager? = null
+    private var overlayView: View? = null
+    private var isOverlayShowing = false
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+    }
+
+    // ... (onStartCommand remains same)
+
     private suspend fun analyzeFrame(bitmap: Bitmap) {
         try {
             val prompt = """
@@ -161,12 +185,89 @@ class TalosService : Service() {
             )
             
             val json = response.text?.replace("```json", "")?.replace("```", "")?.trim()
-            // TODO: Parse JSON and Trigger The Hand if unsafe
+            if (json != null) {
+                val result = JSONObject(json)
+                val isSafe = result.optBoolean("isSafe", true)
+                
+                withContext(Dispatchers.Main) {
+                    if (!isSafe) {
+                        showOverlay()
+                    } else {
+                        hideOverlay()
+                    }
+                }
+            }
             
         } catch (e: Exception) {
-            // Gemini blocked it (Safety Setting Triggered) -> Treat as Unsafe
-            // TODO: Handle safety block
+            // Safety Block -> Show Overlay
+             withContext(Dispatchers.Main) {
+                 showOverlay()
+             }
         }
+    }
+
+    private fun showOverlay() {
+        if (isOverlayShowing) return
+
+        if (overlayView == null) {
+            overlayView = createOverlayView()
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, // Fill entire screen including status bar
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.CENTER
+
+        windowManager?.addView(overlayView, params)
+        isOverlayShowing = true
+    }
+
+    private fun hideOverlay() {
+        if (!isOverlayShowing) return
+        
+        windowManager?.removeView(overlayView)
+        isOverlayShowing = false
+    }
+
+    private fun createOverlayView(): View {
+        val layout = FrameLayout(this)
+        layout.setBackgroundColor(0xDD000000.toInt()) // 85% Black Overlay (Frosted Glass simulation)
+
+        val message = TextView(this).apply {
+            text = "⚠️ HARMFUL CONTENT DETECTED ⚠️\n\nTalos Guardian has blocked this screen."
+            textSize = 24f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+        }
+        
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
+
+        layout.addView(message, params)
+        return layout
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isOverlayShowing) {
+            windowManager?.removeView(overlayView)
+        }
+        virtualDisplay?.release()
+        imageReader?.close()
+        mediaProjection?.stop()
     }
 
     private fun imageToBitmap(image: Image): Bitmap? {
