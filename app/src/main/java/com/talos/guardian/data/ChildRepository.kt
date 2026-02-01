@@ -14,9 +14,76 @@ object ChildRepository {
     
     // We need context to access Room, so we'll init it lazily or pass it in
     private var database: AppDatabase? = null
+    private var appContext: Context? = null
+    private const val PREF_NAME = "talos_child_prefs"
+    private const val KEY_PARENT_UID = "paired_parent_uid"
+    private const val KEY_CHILD_UID = "child_uid"
+    private const val KEY_CHILD_NAME = "child_name"
 
     fun initialize(context: Context) {
+        appContext = context.applicationContext
         database = AppDatabase.getDatabase(context)
+    }
+    
+    /**
+     * Links this device to a Parent UID.
+     * Generates a unique Child UID if one doesn't exist.
+     * Saves to Firestore and Local Prefs.
+     */
+    suspend fun linkChildToParent(parentUid: String, childName: String): Boolean {
+        val context = appContext ?: return false
+        
+        try {
+            // 1. Get or Create Child UID (UUID for now, since no Auth)
+            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            var childUid = prefs.getString(KEY_CHILD_UID, null)
+            
+            if (childUid == null) {
+                childUid = java.util.UUID.randomUUID().toString()
+                prefs.edit().putString(KEY_CHILD_UID, childUid).apply()
+            }
+            
+            // 2. Create ChildUser Object
+            val childUser = ChildUser(
+                uid = childUid,
+                deviceID = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "unknown_id",
+                pairedParentID = parentUid,
+                deviceName = childName,
+                currentStatus = ChildStatus.ACTIVE
+            )
+            
+            // 3. Save to Firestore
+            db.collection(COLLECTION_CHILDREN).document(childUid).set(childUser).await()
+            
+            // 4. Save Parent UID Locally (Mark as Paired)
+            prefs.edit()
+                .putString(KEY_PARENT_UID, parentUid)
+                .putString(KEY_CHILD_NAME, childName)
+                .apply()
+                
+            return true
+        } catch (e: Exception) {
+            Log.e("TalosChild", "Linking failed", e)
+            return false
+        }
+    }
+
+    /**
+     * Checks if this device is already paired.
+     */
+    fun isDevicePaired(): Boolean {
+        val context = appContext ?: return false
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_PARENT_UID, null) != null
+    }
+
+    /**
+     * Gets the current Child ID.
+     */
+    fun getCurrentChildId(): String? {
+        val context = appContext ?: return null
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_CHILD_UID, null)
     }
 
     /**

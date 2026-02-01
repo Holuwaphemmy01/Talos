@@ -34,9 +34,17 @@ import com.talos.guardian.utils.QrCodeAnalyzer
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Button
+import androidx.compose.ui.text.input.TextFieldValue
+
 class ChildPairingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Initialize Repository (ensure context is set)
+        ChildRepository.initialize(applicationContext)
+        
         setContent {
             MaterialTheme {
                 Surface(
@@ -44,11 +52,17 @@ class ChildPairingActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     ChildPairingScreen(
-                        onPairingSuccess = { parentUid ->
-                            // TODO: Save parentUid to DB and navigate to Home
-                            Toast.makeText(this, "Paired with Parent: $parentUid", Toast.LENGTH_LONG).show()
-                            // Finish and let MainActivity handle the flow or restart it
-                            finish() 
+                        onPairingSuccess = { parentUid, childName ->
+                            lifecycleScope.launch {
+                                val success = ChildRepository.linkChildToParent(parentUid, childName)
+                                if (success) {
+                                    Toast.makeText(this@ChildPairingActivity, "Successfully Linked to Parent!", Toast.LENGTH_LONG).show()
+                                    // Navigate to Main Screen (which will now show "Shield Ready")
+                                    finish()
+                                } else {
+                                    Toast.makeText(this@ChildPairingActivity, "Linking Failed. Check Internet.", Toast.LENGTH_LONG).show()
+                                }
+                            }
                         }
                     )
                 }
@@ -58,9 +72,15 @@ class ChildPairingActivity : ComponentActivity() {
 }
 
 @Composable
-fun ChildPairingScreen(onPairingSuccess: (String) -> Unit) {
+fun ChildPairingScreen(onPairingSuccess: (String, String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // State for Name Input
+    var childName by remember { mutableStateOf(TextFieldValue("My Device")) }
+    var isNameConfirmed by remember { mutableStateOf(false) }
+
+    // State for Camera Permission
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -83,6 +103,47 @@ fun ChildPairingScreen(onPairingSuccess: (String) -> Unit) {
         }
     }
 
+    // STEP 1: Name Input Screen
+    if (!isNameConfirmed) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.layout.Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Text(
+                    text = "Name This Device",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
+                
+                OutlinedTextField(
+                    value = childName,
+                    onValueChange = { childName = it },
+                    label = { Text("Device Name (e.g. John's Phone)") }
+                )
+                
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = { 
+                        if (childName.text.isNotBlank()) {
+                            isNameConfirmed = true
+                        } else {
+                            Toast.makeText(context, "Please enter a name", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Next: Scan QR Code")
+                }
+            }
+        }
+        return
+    }
+
+    // STEP 2: QR Scanner
     if (hasCameraPermission) {
         var isScanning by remember { mutableStateOf(true) }
         
@@ -108,7 +169,10 @@ fun ChildPairingScreen(onPairingSuccess: (String) -> Unit) {
                                 Executors.newSingleThreadExecutor(),
                                 QrCodeAnalyzer { parentUid ->
                                     isScanning = false
-                                    onPairingSuccess(parentUid)
+                                    // Trigger Success Callback on Main Thread
+                                    ContextCompat.getMainExecutor(ctx).execute {
+                                        onPairingSuccess(parentUid, childName.text)
+                                    }
                                     cameraProvider.unbindAll() // Stop camera immediately
                                 }
                             )
@@ -151,7 +215,7 @@ fun ChildPairingScreen(onPairingSuccess: (String) -> Unit) {
                 ) {
                     CircularProgressIndicator()
                     Text(
-                        text = "Linking...",
+                        text = "Linking to Parent...",
                         modifier = Modifier.padding(top = 48.dp)
                     )
                 }
