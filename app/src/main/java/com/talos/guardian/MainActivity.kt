@@ -34,6 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
+import com.talos.guardian.data.AuthRepository
+import com.talos.guardian.ui.auth.LoginActivity
+import com.talos.guardian.ui.dashboard.ParentDashboardActivity
+
 class MainActivity : ComponentActivity() {
 
     private val mediaProjectionLauncher = registerForActivityResult(
@@ -63,13 +67,41 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Check for existing session
+        if (AuthRepository.isUserLoggedIn()) {
+            // TODO: Determine if user is Parent or Child (Need to store role in Prefs or Firestore)
+            // For now, assume Parent if logged in, or we can route to dashboard to check
+            startActivity(Intent(this, ParentDashboardActivity::class.java))
+            finish()
+            return
+        }
+
         setContent {
             TalosTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        onStartProtection = { checkOverlayPermissionAndStart() }
-                    )
+                    // Temporary: We will have a "Role Selection" screen here later
+                    // For now, let's provide buttons for "Child Mode" and "Parent Login"
+                    Column(
+                        modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                    ) {
+                        Text("Talos Guardian", style = MaterialTheme.typography.headlineLarge)
+                        Spacer(modifier = Modifier.height(32.dp))
+                        
+                        Button(onClick = { 
+                            startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                        }) {
+                            Text("Parent Login / Setup")
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Button(onClick = { checkOverlayPermissionAndStart() }) {
+                            Text("Activate Child Shield")
+                        }
+                    }
                 }
             }
         }

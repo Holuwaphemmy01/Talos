@@ -5,34 +5,45 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.core.app.NotificationCompat
-import android.graphics.Bitmap
-import android.media.Image
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.nio.ByteBuffer
-
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.content
+import com.google.firebase.auth.FirebaseAuth
+import com.talos.guardian.data.ActivityLog
+import com.talos.guardian.data.ChildRepository
 import com.talos.guardian.workers.SyncLogsWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.nio.ByteBuffer
+
+import com.talos.guardian.ml.TheSentry
 
 class TalosService : Service() {
 
@@ -40,6 +51,23 @@ class TalosService : Service() {
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "talos_guardian_channel"
         const val CHANNEL_NAME = "Talos Active Protection"
+    }
+
+    private var mediaProjection: MediaProjection? = null
+    private var imageReader: ImageReader? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    
+    private var windowManager: WindowManager? = null
+    private var overlayView: View? = null
+    private var isOverlayShowing = false
+
+    private var isProcessing = false
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private val geminiModel by lazy {
+        GenerativeModel(
+            modelName = "gemini-1.5-flash",
+            apiKey = BuildConfig.GEMINI_API_KEY
+        )
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -68,18 +96,6 @@ class TalosService : Service() {
             .build()
 
         WorkManager.getInstance(this).enqueue(syncRequest)
-    }
-
-    private var mediaProjection: MediaProjection? = null
-    private var imageReader: ImageReader? = null
-
-    private var isProcessing = false
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private val geminiModel by lazy {
-        GenerativeModel(
-            modelName = "gemini-1.5-flash",
-            apiKey = BuildConfig.GEMINI_API_KEY
-        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -153,6 +169,8 @@ class TalosService : Service() {
                 if (bitmap != null) {
                     // 2. Send to Gemini
                     analyzeFrame(bitmap)
+                    
+                    bitmap.recycle() // Clean up bitmap memory
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -163,34 +181,6 @@ class TalosService : Service() {
             }
         }
     }
-
-import android.app.usage.UsageStatsManager
-import com.google.firebase.auth.FirebaseAuth
-import com.talos.guardian.data.ChildRepository
-import com.talos.guardian.data.ActivityLog
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.View
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.TextView
-import org.json.JSONObject
-import kotlinx.coroutines.withContext
-
-class TalosService : Service() {
-
-    // ... (existing variables)
-    private var windowManager: WindowManager? = null
-    private var overlayView: View? = null
-    private var isOverlayShowing = false
-
-    override fun onCreate() {
-        super.onCreate()
-        createNotificationChannel()
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-    }
-
-    // ... (onStartCommand remains same)
 
     private suspend fun analyzeFrame(bitmap: Bitmap) {
         try {
@@ -227,7 +217,7 @@ class TalosService : Service() {
                 }
 
                 if (!isSafe) {
-                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@withContext
                     val log = ActivityLog(
                         timestamp = System.currentTimeMillis(),
                         appName = getForegroundApp(),
@@ -239,10 +229,10 @@ class TalosService : Service() {
             }
             
         } catch (e: Exception) {
-            // Safety Block -> Show Overlay
-             withContext(Dispatchers.Main) {
-                 showOverlay()
-             }
+            // Safety Block -> Show Overlay if analysis fails insecurely? 
+            // Better to fail open (safe) or fail closed (safe)?
+            // For now, let's log it.
+            e.printStackTrace()
         }
     }
 
@@ -313,16 +303,6 @@ class TalosService : Service() {
         return layout
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isOverlayShowing) {
-            windowManager?.removeView(overlayView)
-        }
-        virtualDisplay?.release()
-        imageReader?.close()
-        mediaProjection?.stop()
-    }
-
     private fun imageToBitmap(image: Image): Bitmap? {
         val plane = image.planes[0]
         val buffer = plane.buffer
@@ -338,13 +318,6 @@ class TalosService : Service() {
         )
         bitmap.copyPixelsFromBuffer(buffer)
         return bitmap
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        virtualDisplay?.release()
-        imageReader?.close()
-        mediaProjection?.stop()
     }
 
     private fun createNotificationChannel() {
@@ -369,5 +342,15 @@ class TalosService : Service() {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isOverlayShowing) {
+            windowManager?.removeView(overlayView)
+        }
+        virtualDisplay?.release()
+        imageReader?.close()
+        mediaProjection?.stop()
     }
 }

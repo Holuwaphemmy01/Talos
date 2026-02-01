@@ -37,6 +37,18 @@
             </intent-filter>
         </activity>
 
+        <activity 
+            android:name=".ui.auth.LoginActivity" 
+            android:exported="false" />
+            
+        <activity 
+            android:name=".ui.dashboard.ParentDashboardActivity" 
+            android:exported="false" />
+
+        <activity 
+            android:name=".ui.pairing.ParentPairingActivity" 
+            android:exported="false" />
+
         <service
             android:name=".TalosService"
             android:enabled="true"
