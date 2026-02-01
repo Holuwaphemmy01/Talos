@@ -37,6 +37,9 @@ import androidx.compose.runtime.setValue
 import com.talos.guardian.data.AuthRepository
 import com.talos.guardian.ui.auth.LoginActivity
 import com.talos.guardian.ui.dashboard.ParentDashboardActivity
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import com.talos.guardian.receivers.TalosAdminReceiver
 
 class MainActivity : ComponentActivity() {
 
@@ -67,6 +70,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Check and Request Device Admin
+        checkDeviceAdmin()
         
         // Check for existing session
         if (AuthRepository.isUserLoggedIn()) {
@@ -163,10 +169,26 @@ class MainActivity : ComponentActivity() {
             startService(serviceIntent)
         }
     }
+
+    private fun checkDeviceAdmin() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val componentName = ComponentName(this, TalosAdminReceiver::class.java)
+
+        if (!dpm.isAdminActive(componentName)) {
+            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Talos Guardian requires Device Admin to prevent unauthorized removal and ensure child safety.")
+            startActivity(intent)
+        }
+    }
 }
 
 @Composable
-fun MainScreen(modifier: Modifier = Modifier, onStartProtection: () -> Unit) {
+fun MainScreen(
+    onNavigateToChild: () -> Unit,
+    onNavigateToParent: () -> Unit,
+    onNavigateToPairing: () -> Unit
+) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
