@@ -101,6 +101,14 @@ class MainActivity : ComponentActivity() {
                         Button(onClick = { checkOverlayPermissionAndStart() }) {
                             Text("Activate Child Shield")
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(onClick = {
+                            startActivity(Intent(this@MainActivity, com.talos.guardian.ui.pairing.ChildPairingActivity::class.java))
+                        }) {
+                            Text("Link to Parent (Child)")
+                        }
                     }
                 }
             }
