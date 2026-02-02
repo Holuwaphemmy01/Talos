@@ -41,8 +41,19 @@ fun ParentPairingScreen(onBackClick: () -> Unit) {
     LaunchedEffect(parentUid) {
         // Generate QR code on a background thread
         try {
-             qrBitmap = QRCodeGenerator.generateQRCode(parentUid)
+             if (parentUid == "ERROR_NO_USER" || parentUid.isEmpty()) {
+                 android.util.Log.e("ParentPairing", "Cannot generate QR: No valid Parent UID")
+             } else {
+                 val bmp = QRCodeGenerator.generateQRCode(parentUid)
+                 if (bmp != null) {
+                     qrBitmap = bmp
+                     android.util.Log.d("ParentPairing", "QR Code generated successfully for: $parentUid")
+                 } else {
+                     android.util.Log.e("ParentPairing", "QR Code generation returned null")
+                 }
+             }
         } catch (e: Exception) {
+             android.util.Log.e("ParentPairing", "QR Code generation crashed", e)
              e.printStackTrace()
         }
     }
