@@ -67,9 +67,15 @@ fun WeeklyReportScreen(
 fun ReportItem(report: WeeklyReport, onClick: () -> Unit) {
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
     val dateStr = dateFormat.format(Date(report.generatedAt))
+    var expanded by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { 
+                expanded = !expanded 
+                onClick() 
+            },
         colors = CardDefaults.cardColors(
             containerColor = if (report.isRead) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer
         )
@@ -94,10 +100,27 @@ fun ReportItem(report: WeeklyReport, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = report.content.take(150) + "...",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            
+            if (expanded) {
+                // Full Content
+                Text(
+                    text = report.content,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                // Preview
+                Text(
+                    text = report.content.take(100).replace("\n", " ") + "...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2
+                )
+                Text(
+                    text = "Tap to read full report",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         }
     }
 }
