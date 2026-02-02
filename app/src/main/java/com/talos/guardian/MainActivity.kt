@@ -41,40 +41,32 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import com.talos.guardian.receivers.TalosAdminReceiver
 
+import androidx.core.app.NotificationManagerCompat
+
 class MainActivity : ComponentActivity() {
 
-    private val mediaProjectionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            startTalosService(result.resultCode, result.data!!)
-        }
-    }
-
-    private val overlayPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        // Check if permission is granted after returning from settings
-        if (Settings.canDrawOverlays(this)) {
-            checkUsageStatsPermissionAndStart()
-        }
-    }
-
-    private val usageStatsPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        if (hasUsageStatsPermission()) {
-            requestMediaProjection()
-        }
-    }
+    // ... existing launchers ...
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Check and Request Device Admin
+        // Check Permissions
         checkDeviceAdmin()
+        checkNotificationPermission() // NEW
         
-        // Check for existing session
+        // ... rest of onCreate ...
+    }
+
+    private fun checkNotificationPermission() {
+        val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(this)
+        if (!enabledPackages.contains(packageName)) {
+            // Redirect user to Settings
+            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            startActivity(intent)
+        }
+    }
+    
+    // ... existing methods ...
         if (AuthRepository.isUserLoggedIn()) {
             // TODO: Determine if user is Parent or Child (Need to store role in Prefs or Firestore)
             // For now, assume Parent if logged in, or we can route to dashboard to check
