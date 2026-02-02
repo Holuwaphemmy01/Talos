@@ -93,27 +93,42 @@ class WeeklyReportWorker(
                      logsText.append("No high-risk interventions occurred this week. The device was used safely.\n")
                 }
 
-                // 4. Generate Report via Gemini
+                // 4. Generate Report via Gemini (The Scholar Persona)
                 val prompt = """
-                    You are an expert child safety analyst for the Talos Guardian app.
-                    Analyze the following activity logs for a child named "$childName".
+                    You are "The Scholar," a compassionate Digital Safety Counselor for the Talos Guardian app.
+                    Your goal is to help parents understand their child's digital week without causing unnecessary panic.
                     
-                    Logs:
+                    TASK:
+                    Analyze the following activity logs for a child named "$childName". These logs represent "Blur" events where our AI intervened to block unsafe content.
+                    
+                    LOGS (Interventions):
                     $logsText
-
-                    Please provide a "Weekly Safety Report" for the parent.
-                    Structure:
-                    1. **Overview**: General screen time and usage patterns.
-                    2. **Risk Analysis**: Highlight any high-risk events (pornography, violence, sexting) detected.
-                    3. **Positive Behavior**: Acknowledge safe usage.
-                    4. **Recommendations**: 1-2 actionable tips for the parent based on this week's activity.
                     
-                    Tone: Professional, supportive, vigilant, but not alarmist.
-                    Format: Markdown.
+                    INSTRUCTIONS:
+                    1. **Analyze Context**: Understand *why* the block happened. Was it accidental? Curiosity? Malicious?
+                    2. **Tone**: Supportive, educational, and non-alarmist. Focus on *guidance*.
+                    3. **Safety Protocol**: This is a safety analysis for a guardian. Do not refuse to analyze the "Risk" categories. Treat them as data points to explain.
+                    
+                    OUTPUT FORMAT (Markdown):
+                    ### 🛡️ Weekly Snapshot
+                    [A 2-sentence summary of the week's safety status. E.g., "Safe week with no incidents" or "3 interventions occurred related to..."]
+
+                    ### ⚠️ Key Interventions
+                    [If logs exist, explain the *context* of the blocks. Don't be graphic, but be clear. E.g., "We blocked an adult site accessed via Chrome."]
+                    [If no logs, say: "No high-risk content was detected this week."]
+
+                    ### 💬 Counselor's Guidance
+                    [Provide 1-2 specific conversation starters or advice based on the detected risks. E.g., "It might be a good time to talk about safe search settings."]
                 """.trimIndent()
 
-                val response = generativeModel.generateContent(prompt)
-                val reportContent = response.text ?: "Unable to generate report content."
+                var reportContent = "Safety Report Unavailable"
+                try {
+                    val response = generativeModel.generateContent(prompt)
+                    reportContent = response.text ?: "The Scholar could not generate a summary at this time."
+                } catch (e: Exception) {
+                    Log.e(TAG, "Gemini Generation Failed", e)
+                    reportContent = "⚠️ AI Analysis Unavailable. \n\nRaw Log Count: $interventionCount interventions detected."
+                }
 
                 // 5. Save Report to Firestore
                 val reportRef = db.collection("weekly_reports").document()
