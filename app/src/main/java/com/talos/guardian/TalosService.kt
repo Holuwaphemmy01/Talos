@@ -43,6 +43,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.nio.ByteBuffer
 
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.util.Log
+
 class TalosService : Service() {
 
     companion object {
@@ -54,6 +58,12 @@ class TalosService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var imageReader: ImageReader? = null
     private var virtualDisplay: VirtualDisplay? = null
+    
+    // Screen State Management
+    private var screenReceiver: BroadcastReceiver? = null
+    private var screenDensity = 0
+    private var screenWidth = 720
+    private var screenHeight = 1280
     
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
@@ -344,6 +354,10 @@ class TalosService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (screenReceiver != null) {
+            unregisterReceiver(screenReceiver)
+            screenReceiver = null
+        }
         if (isOverlayShowing) {
             windowManager?.removeView(overlayView)
         }
