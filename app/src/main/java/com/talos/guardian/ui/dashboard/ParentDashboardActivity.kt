@@ -25,6 +25,90 @@ import androidx.work.WorkManager
 import com.talos.guardian.workers.WeeklyReportWorker
 import java.util.concurrent.TimeUnit
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import com.google.firebase.firestore.FirebaseFirestore
+import com.talos.guardian.data.ChildStatus
+
+@Composable
+fun LiveStatusCard(parentId: String) {
+    var childStatus by remember { mutableStateOf(ChildStatus.OFFLINE) }
+    var childName by remember { mutableStateOf("Child Device") }
+    var lastActive by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(parentId) {
+        val db = FirebaseFirestore.getInstance()
+        // Listen to the first child linked to this parent (Simplified for MVP)
+        db.collection("childs")
+            .whereEqualTo("pairedParentID", parentId)
+            .limit(1)
+            .addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
+                
+                val doc = snapshots.documents[0]
+                childName = doc.getString("deviceName") ?: "Child Device"
+                val statusStr = doc.getString("currentStatus") ?: "OFFLINE"
+                childStatus = try { ChildStatus.valueOf(statusStr) } catch(e: Exception) { ChildStatus.OFFLINE }
+                
+                // Check for "Ghost" state (heartbeat check could go here)
+            }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when(childStatus) {
+                ChildStatus.ACTIVE -> Color(0xFFE8F5E9) // Light Green
+                ChildStatus.ALERT -> Color(0xFFFFEBEE)  // Light Red
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Status Indicator Dot
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(
+                        color = when(childStatus) {
+                            ChildStatus.ACTIVE -> Color.Green
+                            ChildStatus.ALERT -> Color.Red
+                            else -> Color.Gray
+                        },
+                        shape = CircleShape
+                    )
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column {
+                Text(
+                    text = childName,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = when(childStatus) {
+                        ChildStatus.ACTIVE -> "Currently Active & Protected"
+                        ChildStatus.ALERT -> "⚠️ Safety Alert Detected!"
+                        ChildStatus.OFFLINE -> "Offline / Inactive"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (childStatus == ChildStatus.ALERT) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 class ParentDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +131,11 @@ class ParentDashboardActivity : ComponentActivity() {
                         androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Parent Dashboard", style = MaterialTheme.typography.headlineMedium)
                             Text("Welcome, ${currentUser?.email ?: "User"}", style = MaterialTheme.typography.bodyMedium)
+                            
+                            // Add Live Status Card here
+                            if (currentUser != null) {
+                                LiveStatusCard(parentId = currentUser.uid)
+                            }
                             
                             Spacer(modifier = Modifier.height(32.dp))
 
