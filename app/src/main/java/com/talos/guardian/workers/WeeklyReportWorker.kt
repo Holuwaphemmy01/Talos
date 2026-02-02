@@ -10,11 +10,12 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.talos.guardian.BuildConfig
 import com.talos.guardian.data.WeeklyReport
+import com.talos.guardian.data.AppUsageRepository
 import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 
 class WeeklyReportWorker(
-    context: Context,
+    val context: Context, // Changed to val to access in doWork
     workerParams: WorkerParameters
 ) : CoroutineWorker(context, workerParams) {
 
