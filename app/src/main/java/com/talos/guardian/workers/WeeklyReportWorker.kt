@@ -57,8 +57,10 @@ class WeeklyReportWorker(
                 val childName = childDoc.getString("deviceName") ?: "Child Device"
 
                 // 2. Fetch logs for this child from the last week
-                val logsSnapshot = db.collection("activity_logs")
-                    .whereEqualTo("childUid", childId)
+                // Correct Path: childs/{childId}/logs
+                val logsSnapshot = db.collection("childs")
+                    .document(childId)
+                    .collection("logs")
                     .whereGreaterThanOrEqualTo("timestamp", oneWeekAgo)
                     .orderBy("timestamp", Query.Direction.DESCENDING)
                     .get()
@@ -69,14 +71,26 @@ class WeeklyReportWorker(
                     continue
                 }
 
-                // 3. Prepare data for AI
+                // 3. Prepare data for AI (Filter for BLUR events)
                 val logsText = StringBuilder("Activity Logs for $childName (Last 7 Days):\n")
+                var interventionCount = 0
+                
                 logsSnapshot.forEach { logDoc ->
-                    val appName = logDoc.getString("appName") ?: "Unknown App"
-                    val event = logDoc.getString("eventDescription") ?: ""
-                    val risk = logDoc.getString("riskLevel") ?: "LOW"
-                    val time = java.text.DateFormat.getDateTimeInstance().format(logDoc.getLong("timestamp") ?: 0L)
-                    logsText.append("- [$time] App: $appName, Event: $event, Risk: $risk\n")
+                    val risk = logDoc.getString("riskCategory") ?: "SAFE"
+                    
+                    // Filter: Only include UNSAFE/BLUR events for the report context
+                    if (risk != "SAFE") {
+                        interventionCount++
+                        val appName = logDoc.getString("appName") ?: "Unknown App"
+                        val reasoning = logDoc.getString("aiReasoning") ?: "No details"
+                        val time = java.text.DateFormat.getDateTimeInstance().format(logDoc.getLong("timestamp") ?: 0L)
+                        
+                        logsText.append("- [$time] App: $appName, Risk: $risk, Context: $reasoning\n")
+                    }
+                }
+                
+                if (interventionCount == 0) {
+                     logsText.append("No high-risk interventions occurred this week. The device was used safely.\n")
                 }
 
                 // 4. Generate Report via Gemini
