@@ -63,11 +63,19 @@ Parents need a solution that is **smart**, **privacy-focused**, and **autonomous
 
 ### Installation Steps
 1.  **Install APK**: Install the `TalosGuardian.apk` on the child's device.
-    > **Note**: You will likely see a **"Blocked by Play Protect"** warning. This is normal for development builds.
-    > *   **Where is the button?** The "Install anyway" button is **HIDDEN**.
-    > *   **Step 1**: Look for a small arrow or text that says **"More details"** (usually near the bottom of the popup) and tap it.
-    > *   **Step 2**: Once expanded, click the **"Install anyway"** link that appears at the very bottom.
+    > **Note**: If Google Play Protect blocks the installation and you cannot find "Install anyway":
+    > 1.  Open the **Google Play Store** app.
+    > 2.  Tap your **Profile Picture** (top right) -> **Play Protect**.
+    > 3.  Tap the **Settings (Gear) icon** (top right).
+    > 4.  **Turn OFF** "Scan apps with Play Protect".
+    > 5.  Try installing the APK again. You can turn it back on later.
 2.  **Grant Permissions**: Open the app and grant necessary permissions (Accessibility, Usage Stats, Notification Access).
+    > **Troubleshooting "Restricted Setting"**:
+    > If Android blocks the permission with a "Restricted Setting" popup:
+    > 1.  Go to your phone's **Settings** -> **Apps** -> **Talos Guardian**.
+    > 2.  Tap the **three dots (⋮)** in the top-right corner.
+    > 3.  Select **"Allow restricted settings"**.
+    > 4.  Go back to the app and try enabling the permission again.
 3.  **Pairing**: Scan the QR code from the Parent's device to link the accounts.
 
 ### 🔐 Provisioning Device Owner (Recommended)
