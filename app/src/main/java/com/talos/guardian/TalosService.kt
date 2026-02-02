@@ -43,8 +43,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.nio.ByteBuffer
 
-import com.talos.guardian.ml.TheSentry
-
 class TalosService : Service() {
 
     companion object {
@@ -217,7 +215,7 @@ class TalosService : Service() {
                 }
 
                 if (!isSafe) {
-                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@withContext
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
                     val log = ActivityLog(
                         timestamp = System.currentTimeMillis(),
                         appName = getForegroundApp(),

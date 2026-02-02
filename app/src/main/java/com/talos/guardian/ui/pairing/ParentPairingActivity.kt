@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.talos.guardian.data.AuthRepository
+import com.google.firebase.auth.FirebaseAuth
 import com.talos.guardian.utils.QRCodeGenerator
 
 class ParentPairingActivity : ComponentActivity() {
@@ -36,7 +36,7 @@ class ParentPairingActivity : ComponentActivity() {
 @Composable
 fun ParentPairingScreen(onBackClick: () -> Unit) {
     var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    val parentUid = AuthRepository.currentUser?.uid ?: "ERROR_NO_USER"
+    val parentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "ERROR_NO_USER"
 
     LaunchedEffect(parentUid) {
         // Generate QR code on a background thread (though simplistic here, Bitmap creation is fast enough for now or could be dispatched)

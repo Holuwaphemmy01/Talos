@@ -1,2 +1,2 @@
 @echo off
-"%~dp0gradle\gradle-9.3.1\bin\gradle.bat" %*
+"%~dp0gradle\gradle-8.14.4\bin\gradle.bat" %*

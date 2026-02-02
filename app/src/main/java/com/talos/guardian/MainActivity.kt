@@ -189,7 +189,7 @@ fun MainScreen(
     onNavigateToParent: () -> Unit,
     onNavigateToPairing: () -> Unit
 ) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "Talos Guardian\nShield is Ready.",
@@ -197,7 +197,7 @@ fun MainScreen(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onStartProtection) {
+            Button(onClick = onNavigateToChild) {
                 Text(text = "Activate Shield")
             }
         }
@@ -210,4 +210,3 @@ fun TalosTheme(content: @Composable () -> Unit) {
         content = content
     )
 }
-

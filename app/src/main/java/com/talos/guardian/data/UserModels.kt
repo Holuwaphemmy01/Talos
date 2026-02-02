@@ -40,6 +40,17 @@ data class ChildUser(
     val role = UserRole.CHILD
 }
 
+data class WeeklyReport(
+    @get:PropertyName("id") val id: String = "",
+    @get:PropertyName("parentId") val parentId: String = "",
+    @get:PropertyName("childId") val childId: String = "",
+    @get:PropertyName("childName") val childName: String = "",
+    @get:PropertyName("weekStarting") val weekStarting: Long = 0,
+    @get:PropertyName("generatedAt") val generatedAt: Long = 0,
+    @get:PropertyName("content") val content: String = "",
+    @get:PropertyName("isRead") val isRead: Boolean = false
+)
+
 data class ActivityLog(
     @get:PropertyName("id") val id: String = "",
     @get:PropertyName("timestamp") val timestamp: Long = System.currentTimeMillis(),
