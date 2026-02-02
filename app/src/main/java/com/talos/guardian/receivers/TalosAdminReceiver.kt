@@ -15,8 +15,9 @@ class TalosAdminReceiver : DeviceAdminReceiver() {
     }
 
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence? {
-        // Warning message shown to the user when they try to deactivate admin
-        return "Disabling Talos Guardian will alert your parent and may lock the device. Are you sure?"
+        // Balanced Approach: Warn the child but do not lock the device.
+        // Trust that the parent-child relationship handles the rest via notification.
+        return "This will disable your Talos Safety Shield. Your parent will be notified immediately."
     }
 
     override fun onDisabled(context: Context, intent: Intent) {

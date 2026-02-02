@@ -74,6 +74,9 @@ class MainActivity : ComponentActivity() {
         // Check and Request Device Admin
         checkDeviceAdmin()
         
+        // Enforce Strict Security Policies (Device Owner checks)
+        enforceSecurityPolicies()
+        
         // Check for existing session
         if (AuthRepository.isUserLoggedIn()) {
             // TODO: Determine if user is Parent or Child (Need to store role in Prefs or Firestore)
