@@ -8,6 +8,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.talos.guardian.data.local.AppDatabase
 import kotlinx.coroutines.tasks.await
 
+import com.google.firebase.firestore.WriteBatch
+
 class SyncLogsWorker(
     context: Context,
     workerParams: WorkerParameters
@@ -19,13 +21,15 @@ class SyncLogsWorker(
             val dao = db.logDao()
             val firestore = FirebaseFirestore.getInstance()
 
-            val pendingLogs = dao.getAllLogs()
+            // Fetch pending logs (Limit 500 per batch to respect Firestore limits)
+            val pendingLogs = dao.getAllLogs().take(500)
             if (pendingLogs.isEmpty()) {
                 return Result.success()
             }
 
             Log.d("TalosSync", "Found ${pendingLogs.size} pending logs to sync.")
 
+            val batch = firestore.batch()
             val logsToDelete = mutableListOf<com.talos.guardian.data.local.ActivityLogEntity>()
 
             for (logEntity in pendingLogs) {
@@ -33,36 +37,36 @@ class SyncLogsWorker(
                     val domainLog = logEntity.toDomainModel()
                     val childId = logEntity.childId
 
-                    // Upload to Firestore
-                    // We manually create the path because ChildRepository logic is slightly different
                     val docRef = firestore.collection("childs")
                         .document(childId)
                         .collection("logs")
                         .document()
                     
                     val logWithId = domainLog.copy(id = docRef.id)
-                    docRef.set(logWithId).await()
-
-                    // Mark for deletion if successful
+                    batch.set(docRef, logWithId)
+                    
                     logsToDelete.add(logEntity)
 
                 } catch (e: Exception) {
-                    Log.e("TalosSync", "Failed to sync log ID: ${logEntity.id}", e)
-                    // If one fails, we continue trying others, but don't delete the failed one
+                    Log.e("TalosSync", "Skipping corrupt log ID: ${logEntity.id}", e)
                 }
             }
 
-            // Clean up local DB
             if (logsToDelete.isNotEmpty()) {
+                // Execute Batch Write (Atomic)
+                batch.commit().await()
+                
+                // If batch succeeds, delete locally
                 dao.deleteLogs(logsToDelete)
                 Log.d("TalosSync", "Successfully synced and deleted ${logsToDelete.size} logs.")
             }
 
-            if (logsToDelete.size == pendingLogs.size) {
-                Result.success()
+            if (pendingLogs.size == 500) {
+                // If we hit the limit, there might be more. Return Retry to trigger again soon?
+                // Or just Success and let next schedule handle it.
+                Result.success() 
             } else {
-                // If some failed, retry later
-                Result.retry()
+                Result.success()
             }
 
         } catch (e: Exception) {

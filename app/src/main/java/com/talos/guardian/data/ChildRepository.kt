@@ -148,9 +148,6 @@ object ChildRepository {
             try {
                 val entity = ActivityLogEntity.fromDomainModel(log, childID)
                 database?.logDao()?.insertLog(entity)
-            } catch (localError: Exception) {
-                Log.e("TalosChild", "CRITICAL: Failed to save log locally", localError)
-            }
-        }
-    }
+    // End of Object
+}
 }
