@@ -127,27 +127,47 @@ object ChildRepository {
     }
 
     /**
-     * Logs a detection event to the child's "logs" sub-collection.
-     * Uses a "Try-Cloud, Fail-Local" strategy.
+     * Logs a detection event.
+     * STRATEGY: Always save locally first (Buffer), then trigger background sync.
+     * This ensures 100% data persistence even if offline.
      */
     suspend fun logDetectionEvent(childID: String, log: ActivityLog) {
         try {
-            // Attempt Cloud Upload
-            val docRef = db.collection(COLLECTION_CHILDREN)
-                .document(childID)
-                .collection("logs")
-                .document()
-            
-            val logWithId = log.copy(id = docRef.id)
-            docRef.set(logWithId).await()
+            // 1. Always Save to Local Room DB First (The Buffer)
+            val entity = ActivityLogEntity.fromDomainModel(log, childID)
+            database?.logDao()?.insertLog(entity)
+            Log.d("TalosChild", "Log saved locally to buffer.")
+
+            // 2. Trigger Background Sync (WorkManager)
+            // We use OneTimeWorkRequest to attempt upload immediately if possible,
+            // or queue it if offline.
+            scheduleSync()
             
         } catch (e: Exception) {
-            Log.e("TalosChild", "Cloud upload failed, saving locally", e)
-            
-            // Fallback: Save to Local Room DB
-            try {
-                val entity = ActivityLogEntity.fromDomainModel(log, childID)
-                database?.logDao()?.insertLog(entity)
-    // End of Object
-}
+            Log.e("TalosChild", "Critical Error: Failed to save log locally", e)
+        }
+    }
+
+    private fun scheduleSync() {
+        val context = appContext ?: return
+        val constraints = androidx.work.Constraints.Builder()
+            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = androidx.work.OneTimeWorkRequestBuilder<com.talos.guardian.workers.SyncLogsWorker>()
+            .setConstraints(constraints)
+            .setBackoffCriteria(
+                androidx.work.BackoffPolicy.EXPONENTIAL,
+                androidx.work.WorkRequest.MIN_BACKOFF_MILLIS,
+                java.util.concurrent.TimeUnit.MILLISECONDS
+            )
+            .build()
+
+        androidx.work.WorkManager.getInstance(context)
+            .enqueueUniqueWork(
+                "SyncLogsWork",
+                androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE,
+                syncRequest
+            )
+    }
 }
