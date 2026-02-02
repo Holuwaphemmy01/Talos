@@ -39,9 +39,12 @@ fun ParentPairingScreen(onBackClick: () -> Unit) {
     val parentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "ERROR_NO_USER"
 
     LaunchedEffect(parentUid) {
-        // Generate QR code on a background thread (though simplistic here, Bitmap creation is fast enough for now or could be dispatched)
-        // For production, use Dispatchers.Default
-        qrBitmap = QRCodeGenerator.generateQRCode(parentUid)
+        // Generate QR code on a background thread
+        try {
+             qrBitmap = QRCodeGenerator.generateQRCode(parentUid)
+        } catch (e: Exception) {
+             e.printStackTrace()
+        }
     }
 
     Column(

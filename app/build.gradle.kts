@@ -91,7 +91,11 @@ dependencies {
 
     // QR Code Generation
     implementation(libs.zxing.core)
-
+    // Add this to support MultiFormatWriter properly on Android if needed, 
+    // but core usually suffices. Let's check if we need to enable multidex or if Proguard is stripping it.
+    // Actually, for pure Bitmap generation, core is fine. 
+    // BUT, let's verify if we are using any Android-specific BitMatrix conversions that might fail.
+    
     // CameraX (QR Scanning)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
