@@ -1,47 +1,43 @@
 package com.talos.guardian
 
 import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.media.projection.MediaProjectionManager
-import android.os.Build
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-
 import android.app.AppOpsManager
-import android.os.Process
-import android.net.Uri
-import android.provider.Settings
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-
-import com.talos.guardian.data.AuthRepository
-import com.talos.guardian.ui.auth.LoginActivity
-import com.talos.guardian.ui.dashboard.ParentDashboardActivity
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
-import com.talos.guardian.receivers.TalosAdminReceiver
-
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Process
+import android.provider.Settings
+import android.media.projection.MediaProjectionManager
+import androidx.activity.ComponentActivity
 import androidx.core.app.NotificationManagerCompat
+import androidx.compose.ui.unit.dp
+import com.talos.guardian.receivers.TalosAdminReceiver
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.activity.compose.setContent
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import com.talos.guardian.ui.theme.TalosTheme
+import com.talos.guardian.data.AuthRepository
+import com.talos.guardian.ui.dashboard.ParentDashboardActivity
+import com.talos.guardian.ui.auth.LoginActivity
 
 class MainActivity : ComponentActivity() {
 
@@ -73,53 +69,123 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Check Permissions
         checkDeviceAdmin()
-        checkNotificationPermission() // NEW
-        
-        // Check for existing session
+        checkNotificationPermission()
+
         if (AuthRepository.isUserLoggedIn()) {
-            // TODO: Determine if user is Parent or Child (Need to store role in Prefs or Firestore)
-            // For now, assume Parent if logged in, or we can route to dashboard to check
-            startActivity(Intent(this, ParentDashboardActivity::class.java))
-            finish()
+            lifecycleScope.launch {
+                val profile = AuthRepository.getCurrentUserProfile()
+                if (profile != null && profile.role == com.talos.guardian.data.UserRole.PARENT) {
+                    startActivity(Intent(this@MainActivity, ParentDashboardActivity::class.java))
+                    finish()
+                } else {
+                    AuthRepository.logout()
+                    startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                    finish()
+                }
+            }
             return
         }
 
         setContent {
             TalosTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    // Temporary: We will have a "Role Selection" screen here later
-                    // For now, let's provide buttons for "Child Mode" and "Parent Login"
+                    var isVisible by remember { mutableStateOf(false) }
+                    
+                    LaunchedEffect(Unit) {
+                        isVisible = true
+                    }
+
                     Column(
-                        modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Talos Guardian", style = MaterialTheme.typography.headlineLarge)
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        Button(onClick = { 
-                            startActivity(Intent(this@MainActivity, LoginActivity::class.java))
-                        }) {
-                            Text("Parent Login / Setup")
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Button(onClick = { checkOverlayPermissionAndStart() }) {
-                            Text("Activate Child Shield")
+                        AnimatedVisibility(
+                            visible = isVisible,
+                            enter = slideInVertically() + fadeIn()
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                // Logo Placeholder (if we had the resource ID, e.g. R.mipmap.ic_launcher)
+                                // Image(painter = painterResource(id = R.mipmap.ic_launcher), contentDescription = "Logo", modifier = Modifier.size(120.dp))
+                                
+                                Text(
+                                    text = "Talos Guardian",
+                                    style = MaterialTheme.typography.headlineLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Advanced Child Safety",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(48.dp))
+                        
+                        AnimatedVisibility(
+                            visible = isVisible,
+                            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                ActionCard(
+                                    title = "Parent Dashboard",
+                                    subtitle = "Monitor and manage settings",
+                                    onClick = { startActivity(Intent(this@MainActivity, LoginActivity::class.java)) }
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                ActionCard(
+                                    title = "Activate Child Shield",
+                                    subtitle = "Start protection on this device",
+                                    onClick = { checkOverlayPermissionAndStart() }
+                                )
 
-                        Button(onClick = {
-                            startActivity(Intent(this@MainActivity, com.talos.guardian.ui.pairing.ChildPairingActivity::class.java))
-                        }) {
-                            Text("Link to Parent (Child)")
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                ActionCard(
+                                    title = "Link to Parent",
+                                    subtitle = "Connect this device as a Child",
+                                    onClick = { startActivity(Intent(this@MainActivity, com.talos.guardian.ui.pairing.ChildPairingActivity::class.java)) }
+                                )
+                            }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun ActionCard(title: String, subtitle: String, onClick: () -> Unit) {
+        Card(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
@@ -214,11 +280,4 @@ fun MainScreen(
             }
         }
     }
-}
-
-@Composable
-fun TalosTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        content = content
-    )
 }

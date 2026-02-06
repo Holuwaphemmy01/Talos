@@ -1,6 +1,7 @@
 package com.talos.guardian.ui.dashboard
 
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -8,9 +9,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.talos.guardian.data.ChildStatus
@@ -30,41 +33,62 @@ import com.talos.guardian.ui.pairing.ParentPairingActivity
 import com.talos.guardian.ui.security.PinLockScreen
 import com.talos.guardian.ui.security.PinMode
 import com.talos.guardian.workers.WeeklyReportWorker
-import java.util.concurrent.TimeUnit
-import android.content.Intent
+import com.talos.guardian.ui.theme.TalosTheme
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.ui.text.font.FontWeight
 
 class ParentDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val currentUser = FirebaseAuth.getInstance().currentUser
+        try {
+            val currentUser = FirebaseAuth.getInstance().currentUser
 
-        // Schedule Weekly Report Worker
-        scheduleWeeklyReport()
-        
-        setContent {
-            MaterialTheme {
-                var showReports by remember { mutableStateOf(false) }
+            // Schedule Weekly Report Worker
+            try {
+                scheduleWeeklyReport()
+            } catch (e: Throwable) {
+                android.util.Log.e("TalosCrash", "Worker Schedule Failed", e)
+            }
+            
+            setContent {
+                TalosTheme {
+                    var showReports by remember { mutableStateOf(false) }
 
-                if (showReports) {
-                    WeeklyReportScreen(
-                        parentId = currentUser?.uid ?: "",
-                        onBack = { showReports = false }
-                    )
-                } else {
-                    ParentDashboard(
-                        onNavigateToReports = { showReports = true },
-                        onNavigateToSettings = {
-                            // TODO: Navigate to real Settings screen
-                        },
-                        onLogout = {
-                            FirebaseAuth.getInstance().signOut()
-                            finish()
-                        },
-                        onLinkNewDevice = {
-                            startActivity(Intent(this, ParentPairingActivity::class.java))
-                        }
-                    )
+                    if (showReports) {
+                        WeeklyReportScreen(
+                            parentId = currentUser?.uid ?: "",
+                            onBack = { showReports = false }
+                        )
+                    } else {
+                        ParentDashboard(
+                            onNavigateToReports = { showReports = true },
+                            onNavigateToSettings = {
+                                // TODO: Navigate to real Settings screen
+                            },
+                            onLogout = {
+                                FirebaseAuth.getInstance().signOut()
+                                finish()
+                            },
+                            onLinkNewDevice = {
+                                startActivity(Intent(this, ParentPairingActivity::class.java))
+                            }
+                        )
+                    }
                 }
+            }
+        } catch (e: Throwable) {
+            android.util.Log.e("TalosCrash", "Dashboard Fatal Crash", e)
+            android.widget.Toast.makeText(this, "Error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            setContent {
+                 MaterialTheme {
+                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                         Text("Fatal Error: ${e.localizedMessage}")
+                     }
+                 }
             }
         }
     }
@@ -143,66 +167,108 @@ fun ParentDashboard(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (currentUser != null) {
-                    LiveStatusCard(parentId = currentUser.uid)
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInVertically() + fadeIn()
+                    ) {
+                        LiveStatusCard(parentId = currentUser.uid)
+                    }
                 } else {
-                    Text("Please log in to see child status.")
+                    Text(
+                        "Please log in to see child status.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
                 
                 // Quick Actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                AnimatedVisibility(
+                    visible = true,
+                    enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn()
                 ) {
-                    DashboardActionButton(
-                        icon = Icons.Default.Assessment,
-                        label = "Reports",
-                        onClick = { onNavigateToReports(currentUser?.uid ?: "") }
-                    )
-                    
-                    DashboardActionButton(
-                        icon = Icons.Default.Security,
-                        label = "Settings",
-                         onClick = { 
-                             showPinScreen = true
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Quick Actions",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            DashboardActionCard(
+                                icon = Icons.Default.List,
+                                label = "Reports",
+                                onClick = { onNavigateToReports(currentUser?.uid ?: "") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            DashboardActionCard(
+                                icon = Icons.Default.Lock,
+                                label = "Settings",
+                                onClick = { showPinScreen = true },
+                                modifier = Modifier.weight(1f)
+                            )
                         }
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                Button(onClick = onLinkNewDevice) {
-                    Text("Link New Device (QR)")
+                        
+                        DashboardActionCard(
+                            icon = Icons.Default.Add,
+                            label = "Link New Device",
+                            onClick = onLinkNewDevice,
+                            modifier = Modifier.fillMaxWidth(),
+                            isPrimary = true
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardActionButton(
+fun DashboardActionCard(
     icon: ImageVector,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isPrimary: Boolean = false
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(8.dp)
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(100.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPrimary) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (isPrimary) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            modifier = Modifier
-                .size(48.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                .padding(12.dp),
-            tint = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(text = label, style = MaterialTheme.typography.labelLarge)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(32.dp),
+                tint = if (isPrimary) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
@@ -212,18 +278,22 @@ fun LiveStatusCard(parentId: String) {
     var childName by remember { mutableStateOf("Child Device") }
 
     LaunchedEffect(parentId) {
-        val db = FirebaseFirestore.getInstance()
-        db.collection("childs")
-            .whereEqualTo("pairedParentID", parentId)
-            .limit(1)
-            .addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
-                
-                val doc = snapshots.documents[0]
-                childName = doc.getString("deviceName") ?: "Child Device"
-                val statusStr = doc.getString("currentStatus") ?: "OFFLINE"
-                childStatus = try { ChildStatus.valueOf(statusStr) } catch(e: Exception) { ChildStatus.OFFLINE }
-            }
+        try {
+            val db = FirebaseFirestore.getInstance()
+            db.collection("childs")
+                .whereEqualTo("pairedParentID", parentId)
+                .limit(1)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null || snapshots == null || snapshots.isEmpty) return@addSnapshotListener
+                    
+                    val doc = snapshots.documents[0]
+                    childName = doc.getString("deviceName") ?: "Child Device"
+                    val statusStr = doc.getString("currentStatus") ?: "OFFLINE"
+                    childStatus = try { ChildStatus.valueOf(statusStr) } catch(e: Exception) { ChildStatus.OFFLINE }
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("TalosCrash", "Firestore Init Failed", e)
+        }
     }
 
     Card(

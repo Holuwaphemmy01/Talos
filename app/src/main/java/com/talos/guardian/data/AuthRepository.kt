@@ -5,38 +5,55 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
-object AuthRepository {
+interface IAuthRepository {
+    suspend fun register(email: String, pass: String, role: String): Result<Boolean>
+    suspend fun login(email: String, pass: String): Result<Boolean>
+    suspend fun getCurrentUserProfile(): TalosUser?
+}
+
+object AuthRepository : IAuthRepository {
 
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
-    suspend fun register(email: String, pass: String, role: String): Boolean {
+    override suspend fun register(email: String, pass: String, role: String): Result<Boolean> {
         return try {
-            // 1. Create User in Auth
             val authResult = auth.createUserWithEmailAndPassword(email, pass).await()
-            val uid = authResult.user?.uid ?: return false
+            val uid = authResult.user?.uid ?: return Result.failure(Exception("User creation failed"))
 
-            // 2. Store Role in Firestore
             val userMap = hashMapOf(
+                "uid" to uid,
                 "email" to email,
                 "role" to role,
                 "createdAt" to System.currentTimeMillis()
             )
             db.collection("users").document(uid).set(userMap).await()
-            true
-        } catch (e: Exception) {
+            Result.success(true)
+        } catch (e: Throwable) {
             Log.e("TalosAuth", "Register Failed", e)
-            false
+            Result.failure(e)
         }
     }
 
-    suspend fun login(email: String, pass: String): Boolean {
+    override suspend fun login(email: String, pass: String): Result<Boolean> {
         return try {
             auth.signInWithEmailAndPassword(email, pass).await()
-            true
-        } catch (e: Exception) {
+            Result.success(true)
+        } catch (e: Throwable) {
             Log.e("TalosAuth", "Login Failed", e)
-            false
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCurrentUserProfile(): TalosUser? {
+        val current = auth.currentUser ?: return null
+        return try {
+            val snapshot = db.collection("users").document(current.uid).get().await()
+            if (!snapshot.exists()) return null
+            snapshot.toObject(TalosUser::class.java)
+        } catch (e: Throwable) {
+            Log.e("TalosAuth", "Load Profile Failed", e)
+            null
         }
     }
 

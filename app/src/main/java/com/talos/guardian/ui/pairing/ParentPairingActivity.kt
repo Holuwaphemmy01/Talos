@@ -36,13 +36,21 @@ class ParentPairingActivity : ComponentActivity() {
 @Composable
 fun ParentPairingScreen(onBackClick: () -> Unit) {
     var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    val parentUid = FirebaseAuth.getInstance().currentUser?.uid ?: "ERROR_NO_USER"
+    
+    // Safely get Current User ID
+    val parentUid = remember {
+        try {
+            FirebaseAuth.getInstance().currentUser?.uid ?: "ERROR_NO_USER"
+        } catch (e: Exception) {
+            "ERROR_FIREBASE_INIT"
+        }
+    }
 
     LaunchedEffect(parentUid) {
         // Generate QR code on a background thread
         try {
-             if (parentUid == "ERROR_NO_USER" || parentUid.isEmpty()) {
-                 android.util.Log.e("ParentPairing", "Cannot generate QR: No valid Parent UID")
+             if (parentUid == "ERROR_NO_USER" || parentUid == "ERROR_FIREBASE_INIT" || parentUid.isEmpty()) {
+                 android.util.Log.e("ParentPairing", "Cannot generate QR: No valid Parent UID (State: $parentUid)")
              } else {
                  val bmp = QRCodeGenerator.generateQRCode(parentUid)
                  if (bmp != null) {
@@ -73,7 +81,13 @@ fun ParentPairingScreen(onBackClick: () -> Unit) {
         
         Spacer(modifier = Modifier.height(32.dp))
 
-        if (qrBitmap != null) {
+        if (parentUid == "ERROR_FIREBASE_INIT") {
+            Text(
+                text = "Error: Firebase not initialized.\nPlease restart the app or check your setup.",
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center
+            )
+        } else if (qrBitmap != null) {
             Image(
                 bitmap = qrBitmap!!.asImageBitmap(),
                 contentDescription = "Pairing QR Code",

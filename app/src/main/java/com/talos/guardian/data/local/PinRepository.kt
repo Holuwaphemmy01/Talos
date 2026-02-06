@@ -7,20 +7,27 @@ import androidx.security.crypto.MasterKey
 
 class PinRepository(context: Context) {
 
-    private val sharedPreferences: SharedPreferences
+    private var sharedPreferences: SharedPreferences
 
     init {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
+        try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
 
-        sharedPreferences = EncryptedSharedPreferences.create(
-            context,
-            "secure_pin_prefs",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+            sharedPreferences = EncryptedSharedPreferences.create(
+                context,
+                "secure_pin_prefs",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            // Fallback to standard SharedPreferences if encryption fails (e.g. Keystore issues)
+            // In a production security app, we might want to handle this differently (e.g. wipe keys)
+            sharedPreferences = context.getSharedPreferences("secure_pin_prefs_fallback", Context.MODE_PRIVATE)
+        }
     }
 
     fun isPinSet(): Boolean {
